@@ -1,0 +1,160 @@
+---
+title: "Investigating Outlier SNPs in Floridian Population Using OutFLANK"
+author: "Trinity Conn"
+date: "2025-10-10"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+#load required packages
+library(tidyverse)
+library(OutFLANK)
+library(vcfR)
+
+```
+```{r color}
+##Set Custom Colors according to Paige
+
+custom_colors<-c("Aruba/Curacao"= "#04A2A0", "Belize/MX"="#AA36A5", "FL"="#EE962F", "JAM/DR"="#C6CF18", "PAN"="#4E66C2")
+
+
+
+```
+
+```{r load in data}
+
+###'full snp panel ###
+### /project2/ckenkel_26/Acer_WGS/vcfs/Sep2025_morePAN/full.panel_5bpind.morePAN.HWE.DPqual.AC3.bi.SOR.vcf.gz
+
+
+
+setwd("~/Documents/Shedd/acer_analysis")
+vcf<-read.vcfR("full.maxmissing.recode.vcf.gz") ## this is a subset of the full panel vcf with additional PAN samples that has been filtered for max.missing > 0.7 reducing the number of SNPs to 
+
+#subsample 'caribbean' population so that it is same sample size as 'FL' population
+
+# Count samples per population
+table(pop2$V2)
+
+# Find minimum population size
+min_size <- pop2 %>%
+  count(V2) %>%
+  pull(n) %>%
+  min()
+
+# Subsample to equal sizes
+set.seed(123)  
+pop2 <- pop2 %>%
+  group_by(V2) %>%
+  slice_sample(n = min_size) %>%
+  ungroup()
+
+# Check balanced counts
+table(pop2$V2)
+
+# Now filter VCF with balanced samples
+samples_to_keep <- pop2$V1
+
+vcf_filtered <- vcf[, c("FORMAT", samples_to_keep)]
+geno<-extract.gt(vcf_filtered)
+G <- geno 
+
+#set gt codes to OutFLANK format 
+G[geno %in% c("0/0")] <- 0 
+G[geno  %in% c("0/1")] <- 1
+G[geno %in% c("1/1")] <- 2
+
+#OutFLANK expects NAs as 9 
+G[is.na(G)] <- 9
+tG <- t(G)
+
+##load in pop files 
+pop<-read.table("popfile2.txt")
+
+#generate locinames
+locinames <- paste(vcf_filtered@fix[,"CHROM"], vcf_filtered@fix[,"POS"], sep="_")
+    head(locinames)
+  
+#set popnames as final character vector 
+popnames<-as.character(pop2$V2)
+
+
+
+#generate final dataframe for running fsts
+fst<-MakeDiploidFSTMat(tG,locinames,popnames)
+fst<-FstDataFrame
+
+#convert negative Fst values to 0  
+fst$FST[fst$FST < 0] <- 0
+
+#check Fst vs Fst w/o sample size correction
+plot(fst$FST, fst$FSTNoCorr,
+     pch=20)
+abline(0,1)
+
+#trim and run OutFLANK
+out_trim <- OutFLANK(fst, NumberOfSamples=2, qthreshold = 0.05, RightTrimFraction = 0.05, LeftTrimFraction = 0.6, Hmin = 0.1)
+
+
+```
+
+```{r outflank}
+
+#plot the results and distribution of neutral Fst Distribution
+OutFLANKResultsPlotter(out_trim, withOutliers = TRUE,
+NoCorr = TRUE, Hmin = 0.1, binwidth = 0.01, Zoom =
+FALSE, RightZoomFraction = 0.15, titletext = NULL)
+
+#doesn't look like the best chi square distribution -- heavily skewed on the left trim 
+
+#retrim with heavy left trim 
+out_trim2<- OutFLANK(fst, NumberOfSamples=2, qthreshold = 0.05, RightTrimFraction = 0.05, LeftTrimFraction = 0.6, Hmin = 0.1)
+
+#plot again with new trimming 
+OutFLANKResultsPlotter(out_trim2, withOutliers = TRUE,
+NoCorr = TRUE, Hmin = 0.1, binwidth = 0.01, Zoom =
+FALSE, RightZoomFraction = 0.15, titletext = NULL)
+
+#didn't really make a difference... does it make a difference in the outliers? 
+#partion out the outliers 
+P1 <- pOutlierFinderChiSqNoCorr(fst, Fstbar = out_trim$FSTNoCorrbar, 
+                                   dfInferred = out_trim$dfInferred, qthreshold = 0.01, Hmin=0.1)
+
+P2 <- pOutlierFinderChiSqNoCorr(fst, Fstbar = out_trim2$FSTNoCorrbar, 
+                                   dfInferred = out_trim2$dfInferred, qthreshold = 0.01, Hmin=0.1) 
+  
+
+```
+
+```{r candidates}
+
+# Create logical vector for top candidates
+outliers <- P1$OutlierFlag==TRUE
+table(outliers)
+outliers2 <- P2$OutlierFlag==TRUE
+table(outliers2)
+#looks like there are no outliers lol --check model fit. IF the data is fitting the model well, t
+#sounds like according to OutFLANK there is no signal of outlier SNPs
+hist(P2$qvalues)
+hist(P2$pvalues)
+
+
+```
+#Conclusion 
+
+According to OutFLANK in the FLxrest of Caribbean comparison 
+
+Caveats: 
+  1. I did random subsetting of the 'Caribbean' population --> maybe do a couple different iterations
+  2. The distribution is so skewed towards the low Fst variants, however even with high trimming of the left tail it doesn't change
+  3. the Fst vs He plot looks crazy 
+  
+
+
+
