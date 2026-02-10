@@ -3,7 +3,7 @@ This repository contains code and preliminary files related to the analysis of w
 
 1. Analysis of The Genomic Erosion of *Acropora cervicornis* through ROH
 2. Identification of Adaptive Loci in *Acropora cervicornis* 
-
+3. Application of Genomic Prediction to the *Acropora cervicornis* GWAS
 
 
 ![Hertshoon](https://github.com/user-attachments/assets/eddc7db8-e243-4654-a9ac-3078066229a4)
