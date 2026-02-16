@@ -107,6 +107,8 @@ plink --bfile gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets --pheno phenotype
 
 ```
 ### Running bayesR with 5-fold CV for genomic prediction 
+
+```
 #!/bin/bash
 
 # 5-Fold Cross-Validation for BayesR
