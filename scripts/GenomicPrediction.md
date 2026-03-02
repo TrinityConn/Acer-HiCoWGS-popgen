@@ -98,25 +98,101 @@ ifort -o bayesRv2 -O3 -fpp -Dblock -openmp -static RandomDistributions.f90 baymo
 ```
 
 ```
-#running bayesr
+#!/bin/bash
+#SBATCH --job-name=plink_comb
+#SBATCH --account=ckenkel_26
+#SBATCH --partition=epyc-64
+#SBATCH --nodes=1
+#SBATCH --ntasks=20
+#SBATCH --mem=10gb
+#SBATCH --time=5:00:00
+#SBATCH -o plink.out
+#SBATCH -e plink.error
+
+#set up environment 
+source ~/.bashrc
+conda activate plink
+
+
+#combining phenotype into fam 
+cd /project2/ckenkel_26/Acer_WGS/GWAS.rel_for.TC/DRTO_GWAS_rel/
+
+#edit phenotype file 
+# Extract IID from .fam file (column 2) and paste with phen values
+awk 'NR==FNR {iid[NR]=$2; next} 
+     FNR==1 {print "FID", "IID", "phen"; next} 
+     {print "0", iid[FNR-1], $1}' \
+     gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets.fam \
+     <(echo "header"; cat phenotype_main_just.DRTO_NO.WQ.txt) > /scratch1/tlc_975/phenotype_main_just.DRTO_NO.WQ_adjusted.txt
+
 
 #first we need to incorporate the phenotype file into the fam file
-conda activate plink
-#
-plink --bfile gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets --pheno phenotype_main_just.DRTO_NO.WQ.txt --make-bed --out gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_sub_updated
+plink --bfile gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets --pheno /scratch1/tlc_975/phenotype_main_just.DRTO_NO.WQ_adjusted.txt  --allow-extra-chr --make-bed --out /scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen
+
+
 
 ```
+```
+
+==========================================
+SLURM_JOB_ID = 7044819
+SLURM_JOB_NODELIST = b10-07
+TMPDIR = /tmp/SLURM_7044819
+==========================================
+PLINK v1.9.0-b.8 64-bit (22 Oct 2024)              cog-genomics.org/plink/1.9/
+(C) 2005-2024 Shaun Purcell, Christopher Chang   GNU General Public License v3
+Logging to /scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen.log.
+Options in effect:
+  --allow-extra-chr
+  --bfile gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets
+  --make-bed
+  --out /scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen
+  --pheno /scratch1/tlc_975/phenotype_main_just.DRTO_NO.WQ_adjusted.txt
+
+257404 MB RAM detected; reserving 128702 MB for main workspace.
+392917 variants loaded from .bim file.
+111 people (0 males, 0 females, 111 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to
+/scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen.nosex .
+111 phenotype values present after --pheno.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 111 founders and 0 nonfounders present.
+Calculating allele frequencies...
+
+Total genotyping rate is exactly 1.
+392917 variants and 111 people pass filters and QC.
+Phenotype data is quantitative.
+--make-bed to
+/scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen.bed +
+/scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen.bim +
+/scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen.fam ...
+
+
+```
+
 ### Running bayesR with 5-fold CV for genomic prediction 
 
 ```
 #!/bin/bash
+#SBATCH --job-name=bayesr
+#SBATCH --account=ckenkel_26
+#SBATCH --partition=epyc-64
+#SBATCH --nodes=1
+#SBATCH --ntasks=20
+#SBATCH --mem=10gb
+#SBATCH --time=10:00:00
+#SBATCH -o bayesr.out
+#SBATCH -e bayesr.error
 
+#set up environment 
+source ~/bashrc
+conda activate plink
 # 5-Fold Cross-Validation for BayesR
 
 
 # Input arguments
-BFILE=gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_sub_updated   # Path to PLINK bfile (without .bed/.bim/.fam extension) this file should include phenotype as column 6
-OUTPUT=gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_sub_update_bayesr # Output prefix
+BFILE=/scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen # Path to PLINK bfile (without .bed/.bim/.fam extension) this file should include phenotype as column 6
+OUTPUT=/scratch1/tlc_975/gwas.LD97_just.DRTO_LoCo.imp_Dec.2025_111.genets_phen_bayesr 
 NFOLDS=5           # Number of folds
 
 # BayesR parameters
@@ -179,9 +255,10 @@ for FOLD in $(seq 0 $((NFOLDS-1))); do
     echo "Running BayesR on training set..."
     
     # BayesR command - adjust path to your BayesR executable
-    bayesR \
+    /scratch1/tlc_975/bayesR/bin/bayesRv2 \
         -bfile ${OUTPUT}_train_fold_${FOLD} \
         -out ${OUTPUT}_cv_results/fold_${FOLD} \
+        -covar /project2/ckenkel_26/Acer_WGS/GWAS.rel_for.TC/DRTO_GWAS_rel/covars.pop.2PCs_just.DRTO_NO.WQ_retry.txt
         -n ${BURNIN} \
         -s ${ITERATIONS} \
         -thin ${THIN} \
@@ -205,7 +282,6 @@ for FOLD in $(seq 0 $((NFOLDS-1))); do
     
     echo "Fold ${FOLD} complete"
 done
-
 ```
 
 
