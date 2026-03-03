@@ -282,8 +282,16 @@ for FOLD in $(seq 0 $((NFOLDS-1))); do
     
     echo "Fold ${FOLD} complete"
 done
+
+
+
 ```
 
+| Population Set | h2wgs | SE | 95% CI Lower | 95% CI Upper |
+|---|---|---|---|---|
+|All_Merged | 0.6204 | 0.334 | -0.0196  | 1.275 | 
+| DRTO | Cell 5 | Cell 6 |
+|FLKE | Cell 3 | Cell 3 | cell 4 
 
 
 
