@@ -286,6 +286,7 @@ done
 
 
 ```
+## Estimates of \left(h^2\right)
 
 | Population Set | h2wgs | SE | 95% CI Lower | 95% CI Upper |
 |---|---|---|---|---|
